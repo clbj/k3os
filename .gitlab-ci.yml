@@ -1,0 +1,46 @@
+# Custom k3os image build
+variables:
+  IMAGE_PATH: "dist/artifacts/k3os-amd64.iso"
+  CONFIG_URL: "https://gist.githubusercontent.com/clbj/e0115455b387625d1911fc279c43f5e5/raw/config.yaml"
+
+stages:
+  - build
+  - test
+
+# For this step an Ubuntu/Debian image with systemd enabled might be necessary
+build_iso:
+  stage: build
+  script:
+    - echo "##### Preparing Evironment...#####"
+    - apt-get update
+    - apt-get -y install lsb-release software-properties-common
+    - curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+    - add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+    - apt-get update
+    - apt-get -y install sudo apt-transport-https ca-certificates curl gnupg2 software-properties-common docker-ce docker-ce-cli containerd.io
+    - service docker start
+    - export PATH=$PATH:/usr/bin/docker
+    - echo "##### Building custom image...#####"
+    - chmod +x *.sh
+    - ./image_build.sh "$CONFIG_URL"
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - dist
+  tags:
+    - linux
+  allow_failure: false
+
+validate_build:
+  stage: test
+  script:
+    - echo "##### Testing custom image...#####"
+    - md5 $IMAGE_PATH > md5.txt
+    - '[ -s $IMAGE_PATH ] && echo "ISO image is valid" && exit 0 || echo "IMAGE files is empty" && exit 1'
+  tags:
+    - linux
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - md5.txt
+  allow_failure: false
